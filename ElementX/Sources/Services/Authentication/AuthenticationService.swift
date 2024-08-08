@@ -106,16 +106,29 @@ class AuthenticationService: AuthenticationServiceProtocol {
     func login(username: String, password: String, initialDeviceName: String?, deviceID: String?) async -> Result<UserSessionProtocol, AuthenticationServiceError> {
         guard let client else { return .failure(.failedLoggingIn) }
         do {
-            try await client.login(username: username, password: password, initialDeviceName: initialDeviceName, deviceId: deviceID)
-            
-            let refreshToken = try? client.session().refreshToken
-            if refreshToken != nil {
-                MXLog.warning("Refresh token found for a non oidc session, can't restore session, logging out")
-                _ = try? await client.logout()
-                return .failure(.sessionTokenRefreshNotSupported)
-            }
-            
+            try await loginWithZero(email: username, password: password)
+            let zeroSession = try await handleSuccessLogin()
+            // create the matrix session from zero session values
+            let matrixSession = Session(accessToken: zeroSession.accessToken,
+                                        refreshToken: nil,
+                                        userId: zeroSession.userID,
+                                        deviceId: zeroSession.deviceID,
+                                        homeserverUrl: zeroSession.homeServer,
+                                        oidcData: nil, slidingSyncProxy: nil)
+            try await client.restoreSession(session: matrixSession)
             return await userSession(for: client)
+            
+//            try await client.login(username: username, password: password, initialDeviceName: initialDeviceName, deviceId: deviceID)
+//
+//            let refreshToken = try? client.session().refreshToken
+//            if refreshToken != nil {
+//                MXLog.warning("Refresh token found for a non oidc session, can't restore session, logging out")
+//                _ = try? await client.logout()
+//                return .failure(.sessionTokenRefreshNotSupported)
+//            }
+//
+//            return await userSession(for: client)
+            
         } catch {
             MXLog.error("Failed logging in with error: \(error)")
             // FIXME: How about we make a proper type in the FFI? 😅
@@ -155,6 +168,82 @@ class AuthenticationService: AuthenticationServiceProtocol {
             return .success(clientProxy)
         case .failure:
             return .failure(.failedLoggingIn)
+        }
+    }
+    
+    private func loginWithZero(email: String, password: String) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            let signInReq = ZSignInRequest(email: email, password: password)
+            NetworkManager.shared.zeroSDK.signin(signInReq) { [weak self] result in
+                guard let self else { return }
+                
+                switch result {
+                case let .success(authData):
+                    ZeroSDK.accessToken = authData.accessToken
+                    continuation.resume()
+                case let .failure(error):
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+    
+    private func handleSuccessLogin() async throws -> MatrixSession {
+        let token = try await fetchSSOToken()
+        let session = try await fetchMatrixSession(token: token)
+        let currentUser = try await fetchCurrentUser()
+        
+        if currentUser.matrixId == nil {
+            try await NetworkManager.shared.zeroSDK.migrateUserToMatrix(userID: currentUser.id)
+        }
+        return session
+    }
+    
+    private func fetchSSOToken() async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            NetworkManager.shared.zeroSDK.fetchSSOToken { result in
+                switch result {
+                case let .success(data):
+                    continuation.resume(returning: data.token)
+                case let .failure(error):
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+    
+    private func fetchMatrixSession(token: String) async throws -> MatrixSession {
+        guard let url = URL(string: API.matrixURLString) else {
+            preconditionFailure("Unable to resolve Matrix URL: \(API.matrixURLString)")
+        }
+        
+        return try await withCheckedThrowingContinuation { continuation in
+            let body = ZMatrixSessionRequest(token: token)
+            
+            NetworkManager.shared.zeroSDK.fetchMatrixSessionData(body,
+                                                                 matrixURL: url,
+                                                                 completionHandler: { result in
+                                                                     switch result {
+                                                                     case let .success(data):
+                                                                         continuation.resume(returning: MatrixSession(session: data))
+                                                                     case let .failure(error):
+                                                                         print(error)
+                                                                         continuation.resume(throwing: error)
+                                                                     }
+                                                                 })
+        }
+    }
+    
+    private func fetchCurrentUser() async throws -> ZCurrentUser {
+        try await withCheckedThrowingContinuation { continuation in
+            NetworkManager.shared.zeroSDK.currentUser { result in
+                switch result {
+                case let .success(user):
+                    continuation.resume(returning: user)
+                case let .failure(error):
+                    continuation.resume(throwing: error)
+                }
+            }
         }
     }
 }
