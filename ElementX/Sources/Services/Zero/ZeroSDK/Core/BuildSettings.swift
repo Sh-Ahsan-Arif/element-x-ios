@@ -2,10 +2,7 @@ import Foundation
 
 final class BuildSettings: NSObject {
     static var applicationGroupIdentifier: String {
-        guard let appGroupIdentifier = Bundle.main.object(forInfoDictionaryKey: "AppGroupIdentifier") as? String else {
-            fatalError("AppGroupIdentifier should be defined")
-        }
-        return appGroupIdentifier
+        "group.io.element"
     }
 
     static var baseBundleIdentifier: String {

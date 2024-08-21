@@ -46,7 +46,7 @@ public extension ZeroSDK {
                                               path: "/_matrix/client/v3/login",
                                               body: body,
                                               headers: [
-                                                  "Host": "zos-home-2-e24b9412096f.herokuapp.com",
+                                                  "Host": "zero-staging-new-9476d8d7e22a.herokuapp.com",
                                                   "Origin": "https://zos.zero.tech"
                                               ],
                                               decoder: zeroDecoder())

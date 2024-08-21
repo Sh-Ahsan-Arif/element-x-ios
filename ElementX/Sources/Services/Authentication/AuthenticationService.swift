@@ -114,7 +114,7 @@ class AuthenticationService: AuthenticationServiceProtocol {
                                         userId: zeroSession.userID,
                                         deviceId: zeroSession.deviceID,
                                         homeserverUrl: zeroSession.homeServer,
-                                        oidcData: nil, slidingSyncProxy: nil)
+                                        oidcData: nil, slidingSyncProxy: "https://zero-staging-new-9476d8d7e22a.herokuapp.com")
             try await client.restoreSession(session: matrixSession)
             return await userSession(for: client)
             
@@ -154,7 +154,7 @@ class AuthenticationService: AuthenticationServiceProtocol {
     private func makeClientBuilder() -> ClientBuilder {
         ClientBuilder
             .baseBuilder(httpProxy: appSettings.websiteURL.globalProxy,
-                         slidingSync: appSettings.simplifiedSlidingSyncEnabled ? .simplified : .discovered,
+                         slidingSync: .simplified,
                          slidingSyncProxy: appSettings.slidingSyncProxyURL,
                          sessionDelegate: userSessionStore.clientSessionDelegate,
                          appHooks: appHooks)

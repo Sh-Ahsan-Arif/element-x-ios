@@ -105,11 +105,11 @@ final class AppSettings {
         
     /// The default homeserver address used. This is intentionally a string without a scheme
     /// so that it can be passed to Rust as a ServerName for well-known discovery.
-    private(set) var defaultHomeserverAddress = "https://zos-home-2-e24b9412096f.herokuapp.com"
+    private(set) var defaultHomeserverAddress = "https://zero-staging-new-9476d8d7e22a.herokuapp.com"
     
     /// An override of the homeserver's Sliding Sync proxy URL. This allows development against servers
     /// that don't yet have an officially trusted proxy configured in their well-known.
-    let slidingSyncProxyURL: URL? = nil
+    let slidingSyncProxyURL: URL? = URL("https://zero-staging-new-9476d8d7e22a.herokuapp.com")
     
     /// The task identifier used for background app refresh. Also used in main target's the Info.plist
     let backgroundAppRefreshTaskIdentifier = "io.element.elementx.background.refresh"
